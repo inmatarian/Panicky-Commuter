@@ -47,6 +47,21 @@ end
 
 ----------------------------------------
 
+SINETABLE = strict {
+  0, 0.195, 0.382, 0.555, 0.707, 0.831, 0.923, 0.98,
+  1, 0.98, 0.923, 0.831, 0.707, 0.555, 0.382, 0.195,
+  -0.001, -0.196, -0.383, -0.556, -0.708, -0.832, -0.924, -0.981,
+  -1, -0.981, -0.924, -0.832, -0.708, -0.556, -0.383, -0.196, 0
+}
+
+function sine( degree )
+  while degree < 0 do degree = degree + 360 end
+  while degree > 360 do degree = degree - 360 end
+  return SINETABLE[1+(math.floor((degree/(360/(#SINETABLE-1)))+0.5))]
+end
+
+----------------------------------------
+
 Animator = class()
 
 function Animator:init( frames )
@@ -128,10 +143,10 @@ end
 ----------------------------------------
 
 Sitter = class( Sprite )
-Sitter.nameList = { "sittingOne", "sittingTwo", "sittingThree" }
+Sitter.nameList = { "sittingOne", "sittingTwo", "sittingThree", "sittingFour" }
 
 function Sitter:init( speed )
-  Sprite.init( self, 45, speed, self.nameList[math.random(1, 3)] )
+  Sprite.init( self, 45, speed, self.nameList[math.random(#self.nameList)] )
 end
 
 ----------------------------------------
@@ -349,56 +364,79 @@ end
 
 ----------------------------------------
 
-MenuState = class()
+TitleMarquee = class()
+TitleMarquee.text = {
+  "----XXX---XX--X--X-XXX--XX-X--X-X---X----XX--XX--X---X-X---X-X--X-XXX-XXXX-XXX------";
+  "----X--X-X--X-XX-X--X--X---X-X---X-X----X---X--X-XX-XX-XX-XX-X--X--X--X----X--X-----";
+  "----XXX--XXXX-X-XX--X--X---XX-----X-----X---X--X-X-X-X-X-X-X-X--X--X--XXX--XXX------";
+  "----X----X--X-X--X--X--X---X-X----X-----X---X--X-X---X-X---X-X--X--X--X----X--X-----";
+  "----X----X--X-X--X-XXX--XX-X--X---X------XX--XX--X---X-X---X--XX---X--XXXX-X--X-----";
+}
 
-function MenuState:init()
-  self.mode = 1
+function TitleMarquee:init()
+  self.offset = 0
 end
 
-function MenuState:update(dt)
-  if keypress["down"]==1 then
-    self.mode = (self.mode + 1) % 3
-  elseif keypress["up"]==1 then
-    self.mode = (self.mode - 1) % 3
-  elseif keypress["escape"]==1 then
-    table.remove(stateStack)
-  elseif keypress["return"]==1 then
-    table.insert( stateStack, PlayState( DIFFICULTY[self.mode+1] ) )
+function TitleMarquee:update(dt)
+  self.offset = self.offset + (100 * dt)
+  local N = self.text[1]:len()
+  if self.offset > N*8 then self.offset = self.offset - N*8 end
+end
+
+function TitleMarquee:draw()
+  local quad = spriteQuads["playerRightLife"]
+  local sx = math.floor(self.offset / 8)
+  local ox = self.offset - ( sx * 8 )
+  local J = #self.text
+  local N = self.text[1]:len()
+  for x = 0, 20 do
+    local t = x + 1 + sx
+    while t > N do t = t - N end
+    local yo = sine( 360 * (x*8-ox)/160 )
+    for j = 1, J do
+      if self.text[j]:sub( t, t ) == 'X' then
+        love.graphics.drawq( tilesetImage, quad, x*8-ox, 8*j + 12*yo )
+      end
+    end
   end
-end
-
-function MenuState:draw()
-  love.graphics.setColor(0, 255, 128, 255)
-  love.graphics.rectangle("fill", 8, 8, 144, 32)
-  text( 16, 16, WHITE, "DIFFICULTY" )
-  text( 32, 64, WHITE, "QUEENS" )
-  text( 32, 80, WHITE, "BROOKLYN" )
-  text( 32, 96, WHITE, "MANHATTAN" )
-  love.graphics.rectangle("fill", 16, 64 + (self.mode * 16), 7, 7)
 end
 
 ----------------------------------------
 
+
 TitleState = class()
 
 function TitleState:init()
-  -- nop
+  self.mode = 0
+  self.marquee = TitleMarquee()
 end
 
 function TitleState:update(dt)
+  self.marquee:update(dt)
   if keypress["escape"]==1 then
     table.remove(stateStack)
     return
+  elseif keypress["down"]==1 then
+    self.mode = (self.mode + 1) % 3
+  elseif keypress["up"]==1 then
+    self.mode = (self.mode - 1) % 3
   elseif keypress["return"]==1 then
-    table.insert( stateStack, MenuState() )
+    if self.mode == 2 then
+      newState = CreditState()
+    else
+      newState = PlayState( DIFFICULTY[self.mode+1] )
+    end
+    table.insert( stateStack, newState )
   end
 end
 
 function TitleState:draw()
-  love.graphics.setColor(0, 128, 255, 255)
-  love.graphics.rectangle("fill", 8, 8, 144, 32)
-  text( 16, 16, WHITE, "PANICKY COMMUTER" )
+  self.marquee:draw()
+  text( 32, 64, WHITE, "LOCAL" )
+  text( 32, 80, WHITE, "EXPRESS" )
+  text( 32, 96, WHITE, "CREDITS" )
   text( 4, 108, WHITE, "(X) 2993 INMATARIAN" )
+  love.graphics.drawq( tilesetImage, spriteQuads["playerIcon"], 16, 64 + (self.mode * 16) )
 end
 
 ----------------------------------------
@@ -447,13 +485,13 @@ tileBounds = strict {
 }
 
 spriteBounds = strict {
-  playerIcon = { 91, 19, 5, 6 },
-  playerLeftLife = { 96, 19, 6, 6 },
-  playerMiddleLife = { 103, 19, 6, 6 },
-  playerRightLife = { 110, 19, 6, 6 },
-  playerLeftDead = { 96, 26, 6, 6 },
-  playerMiddleDead = { 103, 26, 6, 6 },
-  playerRightDead = { 110, 26, 6, 6 },
+  playerIcon = { 100, 2, 5, 6 },
+  playerLeftLife = { 106, 2, 6, 6 },
+  playerMiddleLife = { 113, 2, 6, 6 },
+  playerRightLife = { 120, 2, 6, 6 },
+  playerLeftDead = { 106, 9, 6, 6 },
+  playerMiddleDead = { 113, 9, 6, 6 },
+  playerRightDead = { 120, 9, 6, 6 },
   playerRunningOne = { 2, 80, 9, 13 },
   playerRunningTwo = { 13, 80, 9, 13 },
   playerDeadOne = { 26, 86, 11, 8 },
@@ -464,7 +502,8 @@ spriteBounds = strict {
   bibleGuyTwo = { 87, 80, 8, 14 },
   sittingOne = { 101, 80, 7, 14 },
   sittingTwo = { 110, 80, 7, 14 },
-  sittingThree = { 119, 80, 7, 14 }
+  sittingThree = { 119, 80, 7, 14 },
+  sittingFour = { 119, 64, 7, 14 }
 }
 
 function loadTileset(name)
