@@ -96,6 +96,8 @@ Player = class()
 function Player:init()
   self.x = 32
   self.y = 72
+  self.blink = 0
+  self.lives = 3
   local rate = 1/10
   self.anim = Animator()
   self.anim:add( "playerRunningOne", rate )
@@ -103,10 +105,13 @@ function Player:init()
 end
 
 function Player:draw()
-  love.graphics.drawq( tilesetImage, spriteQuads[self.anim:current()], self.x, self.y )
+  if (self.blink <= 0) or (math.floor(self.blink*10)%2 == 0) then
+    love.graphics.drawq( tilesetImage, spriteQuads[self.anim:current()], self.x, self.y )
+  end
 end
 
 function Player:update(dt)
+  if self.blink > 0 then self.blink = self.blink - dt end
   if keypress["down"]==1 then
     self.y = 72
   elseif keypress["up"]==1 then
@@ -116,6 +121,7 @@ function Player:update(dt)
 end
 
 function Player:detectCollision( thing )
+  if self.blink > 0 then return false end
   local ax1, ax2, ay1, ay2 = self.x + 2, self.x + 6, self.y + 2, self.y + 6
   local bx1, bx2, by1, by2 = thing.x + 2, thing.x + 6, thing.y + 2, thing.y + 6
   return (ax1 < bx2) and (ax2 > bx1) and (ay1 < by2) and (ay2 > by1)
@@ -227,27 +233,23 @@ end
 
 DIFFICULTY = {
   {
-    speed = 80,
-    fatguy = 0.1,
-    hobo = 0.05,
-    bible = 0.0,
-    sitters = 0.25,
+    speed = 100,
+    blink = 1.5,
+    fatguy = 0.4,
+    hobo = 0.2,
+    cooloff = 0.75,
+    bible = 0.005,
+    sitters = 0.40,
     score = 5
   },
   {
-    speed = 120,
-    fatguy = 0.2,
-    hobo = 0.1,
-    bible = 0.015,
-    sitters = 0.50,
-    score = 10
-  },
-  {
-    speed = 160,
-    fatguy = 0.3,
-    hobo = 0.15,
+    speed = 140,
+    blink = 0.75,
+    fatguy = 0.5,
+    hobo = 0.25,
+    cooloff = 0.25,
     bible = 0.03,
-    sitters = 0.75,
+    sitters = 0.80,
     score = 20
   }
 }
@@ -262,6 +264,8 @@ function PlayState:init( mode )
   self.background = Background( mode.speed )
   self.mode = mode
   self.score = 0
+  self.cooloff = 1
+  self.clock = 0
 end
 
 function PlayState:update(dt)
@@ -272,6 +276,8 @@ function PlayState:update(dt)
     self:pause()
 
   else
+    self.clock = self.clock + dt
+    if self.cooloff > 0 then self.cooloff = self.cooloff - dt end
     self.background:update(dt)
     self.player:update(dt)
     self:updateThings(dt)
@@ -302,9 +308,10 @@ function PlayState:addThings()
         self.things[thing] = true
       end
     else
-      if math.random(0, 10000)/10000 < self.mode.hobo then
+      if self.cooloff <= 0 and (math.random(0, 10000)/10000 < self.mode.hobo) then
         local thing = HoboGuy( self.mode.speed, self.player )
         self.things[thing] = true
+        self.cooloff = self.mode.cooloff
       end
     end
   end
@@ -326,7 +333,13 @@ end
 function PlayState:checkCollisions()
   for thing, _ in pairs(self.things) do
     if self.player:detectCollision(thing) then
-      table.remove(stateStack)
+      self.player.lives = self.player.lives - 1
+      if self.player.lives <= 0 then
+        table.remove(stateStack)
+      else
+        self.player.blink = self.mode.blink
+      end
+      break
     end
   end
 end
@@ -337,6 +350,7 @@ function PlayState:draw()
   self:drawThings()
   self.player:draw()
   self:drawScore()
+  self:drawLives()
 end
 
 function PlayState:pause()
@@ -359,6 +373,54 @@ function PlayState:drawThings()
   table.sort( things, function(a, b) if a.y < b.y then return true end; return false end )
   for _, thing in ipairs(things) do
     thing:draw()
+  end
+end
+
+function PlayState:drawLives()
+  local lives = self.player.lives
+  local blink = (math.floor(self.clock*5)%2==0)
+  local a, b, c
+  if lives == 1 and blink then a = "playerLeftDead" else a = "playerLeftLife" end
+  if lives == 2 and blink or lives < 2 then b = "playerMiddleDead" else b = "playerMiddleLife" end
+  if lives == 3 and blink or lives < 3 then c = "playerRightDead" else c = "playerRightLife" end
+  local quads = { "playerIcon", a, b, c }
+  for i, v in ipairs( quads ) do
+    love.graphics.drawq( tilesetImage, spriteQuads[v], 60 + 8*i, 102 )
+  end
+end
+
+----------------------------------------
+
+CreditState = class()
+CreditState.text = {
+ "Inmate2993",
+ "E.Megas",
+ "Angie",
+ "Mr.Business",
+ "Dormando",
+ "MadBrain",
+ "Angie",
+ "Patches",
+ "Spooky",
+ "Dusty",
+}
+
+function CreditState:init()
+  self.loop = 0
+end
+
+function CreditState:update(dt)
+  self.loop = self.loop + 100*dt
+  if self.loop > 120 then self.loop = self.loop - 120 end
+  if keypress["escape"]==1 or keypress["return"]==1 then
+    table.remove(stateStack)
+  end
+end
+
+function CreditState:draw()
+  for i, v in ipairs(self.text) do
+    local y = -4 + ((self.loop + 12*(i-1)) % 120)
+    text( 80 - 4*v:len(), y, WHITE, v )
   end
 end
 
@@ -402,7 +464,6 @@ function TitleMarquee:draw()
 end
 
 ----------------------------------------
-
 
 TitleState = class()
 
