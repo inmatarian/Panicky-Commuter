@@ -62,6 +62,27 @@ end
 
 ----------------------------------------
 
+bgm = nil
+bgmfile = nil
+
+function playmod( file )
+  stopmod()
+  bgm = love.audio.newSource(file, "stream")
+  bgm:setLooping( true )
+  bgm:setVolume(0.8)
+  love.audio.play(bgm)
+  bgmfile = file
+end
+
+function stopmod()
+  if not bgm then return end
+  love.audio.stop(bgm)
+  bgm = nil
+  bgmfile = nil
+end
+
+----------------------------------------
+
 Animator = class()
 
 function Animator:init( frames )
@@ -266,6 +287,7 @@ function PlayState:init( mode )
   self.score = 0
   self.cooloff = 1
   self.clock = 0
+  playmod("game.s3m")
 end
 
 function PlayState:update(dt)
@@ -336,6 +358,7 @@ function PlayState:checkCollisions()
       self.player.lives = self.player.lives - 1
       if self.player.lives <= 0 then
         table.remove(stateStack)
+        table.insert(stateStack, GameOverState( self.score ))
       else
         self.player.blink = self.mode.blink
       end
@@ -387,6 +410,56 @@ function PlayState:drawLives()
   for i, v in ipairs( quads ) do
     love.graphics.drawq( tilesetImage, spriteQuads[v], 60 + 8*i, 102 )
   end
+end
+
+----------------------------------------
+
+ReadySetGoState = class()
+
+function ReadySetGoState:init(mode)
+  stopmod()
+  self.clock = 0
+  self.mode = mode
+end
+
+function ReadySetGoState:update(dt)
+  self.clock = self.clock + dt
+  if self.clock >= 1.5 then
+    table.remove(stateStack)
+    table.insert(stateStack, PlayState( self.mode ))
+  end
+end
+
+function ReadySetGoState:draw()
+  local label
+  if self.clock < 0.5 then label = "START IN 3.."
+  elseif self.clock < 1 then label = "START IN 3..2.."
+  else label = "START IN 3..2..1.."
+  end
+  text( 8, 56, WHITE, label )
+end
+
+----------------------------------------
+
+GameOverState = class()
+
+function GameOverState:init( score )
+  self.score = score
+  self.clock = 0
+  stopmod()
+end
+
+function GameOverState:update(dt)
+  self.clock = self.clock + dt
+  if self.clock > 3 then
+    table.remove(stateStack)
+  end
+end
+
+function GameOverState:draw()
+  text( 52, 44, WHITE, "GAME OVER" )
+  text( 41, 64, WHITE, "FINAL SCORE" )
+  text( 60, 72, WHITE, string.format("%5i", self.score) )
 end
 
 ----------------------------------------
@@ -473,6 +546,7 @@ function TitleState:init()
 end
 
 function TitleState:update(dt)
+  self:setMusic()
   self.marquee:update(dt)
   if keypress["escape"]==1 then
     table.remove(stateStack)
@@ -485,7 +559,7 @@ function TitleState:update(dt)
     if self.mode == 2 then
       newState = CreditState()
     else
-      newState = PlayState( DIFFICULTY[self.mode+1] )
+      newState = ReadySetGoState( DIFFICULTY[self.mode+1] )
     end
     table.insert( stateStack, newState )
   end
@@ -498,6 +572,12 @@ function TitleState:draw()
   text( 32, 96, WHITE, "CREDITS" )
   text( 4, 108, WHITE, "(X) 2993 INMATARIAN" )
   love.graphics.drawq( tilesetImage, spriteQuads["playerIcon"], 16, 64 + (self.mode * 16) )
+end
+
+function TitleState:setMusic()
+  if bgmfile ~= "title.s3m" then
+    playmod("title.s3m")
+  end
 end
 
 ----------------------------------------
