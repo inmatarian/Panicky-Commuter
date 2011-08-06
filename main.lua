@@ -38,6 +38,7 @@ WHITE = strict { 255, 255, 255, 255 }
 ----------------------------------------
 
 function text( x, y, color, str )
+  if x == "center" then x = 80-(str:len()*4) end
   love.graphics.setColor(color)
   for c in str:gmatch('.') do
     love.graphics.print(c, x, y)
@@ -64,6 +65,7 @@ end
 
 bgm = nil
 bgmfile = nil
+soundbank = {}
 
 function playmod( file )
   stopmod()
@@ -79,6 +81,22 @@ function stopmod()
   love.audio.stop(bgm)
   bgm = nil
   bgmfile = nil
+end
+
+function playsound( file )
+  sound = love.audio.newSource(file, "static")
+  soundbank[sound] = sound
+  love.audio.play(sound)
+end
+
+function soundupdate(dt)
+  local remove = {}
+  for _, src in pairs(soundbank) do
+    if src:isStopped() then table.insert(remove, src) end
+  end
+  for _, src in ipairs(remove) do
+    soundbank[src] = nil
+  end
 end
 
 ----------------------------------------
@@ -356,6 +374,7 @@ function PlayState:checkCollisions()
   for thing, _ in pairs(self.things) do
     if self.player:detectCollision(thing) then
       self.player.lives = self.player.lives - 1
+      playsound("DEATH.wav")
       if self.player.lives <= 0 then
         table.remove(stateStack)
         table.insert(stateStack, GameOverState( self.score ))
@@ -385,7 +404,7 @@ function PlayState:updateScore(dt)
 end
 
 function PlayState:drawScore()
-  text( 60, 8, WHITE, string.format("%05i", self.score) )
+  text( "center", 8, WHITE, string.format("%05i", self.score) )
 end
 
 function PlayState:drawThings()
@@ -408,7 +427,7 @@ function PlayState:drawLives()
   if lives == 3 and blink or lives < 3 then c = "playerRightDead" else c = "playerRightLife" end
   local quads = { "playerIcon", a, b, c }
   for i, v in ipairs( quads ) do
-    love.graphics.drawq( tilesetImage, spriteQuads[v], 60 + 8*i, 102 )
+    love.graphics.drawq( tilesetImage, spriteQuads[v], 56 + 8*i, 102 )
   end
 end
 
@@ -457,9 +476,11 @@ function GameOverState:update(dt)
 end
 
 function GameOverState:draw()
-  text( 52, 44, WHITE, "GAME OVER" )
-  text( 41, 64, WHITE, "FINAL SCORE" )
-  text( 60, 72, WHITE, string.format("%5i", self.score) )
+  text( "center", 20, WHITE, "YOU ARE LATE" )
+  text( "center", 28, WHITE, "FOR WORK!!" )
+  text( "center", 48, WHITE, "GAME OVER" )
+  text( "center", 64, WHITE, "FINAL SCORE" )
+  text( "center", 72, WHITE, string.format("%i", self.score) )
 end
 
 ----------------------------------------
@@ -493,7 +514,7 @@ end
 function CreditState:draw()
   for i, v in ipairs(self.text) do
     local y = -4 + ((self.loop + 12*(i-1)) % 120)
-    text( 80 - 4*v:len(), y, WHITE, v )
+    text( "center", y, WHITE, v )
   end
 end
 
@@ -553,8 +574,10 @@ function TitleState:update(dt)
     return
   elseif keypress["down"]==1 then
     self.mode = (self.mode + 1) % 3
+    playsound("CHIRP.wav")
   elseif keypress["up"]==1 then
     self.mode = (self.mode - 1) % 3
+    playsound("CHIRP.wav")
   elseif keypress["return"]==1 then
     if self.mode == 2 then
       newState = CreditState()
@@ -595,7 +618,7 @@ function PausedState:draw()
   stateStack[n-1]:draw()
   love.graphics.setColor(0, 0, 0, 128)
   love.graphics.rectangle("fill", 0, 0, 160, 120)
-  text( 16, 16, WHITE, "PAUSED" )
+  text( "center", 56, WHITE, "PAUSED" )
 end
 
 ----------------------------------------
@@ -694,6 +717,7 @@ function love.update(dt)
   else
     love.event.push('q')
   end
+  soundupdate(dt)
 end
 
 function love.draw()
