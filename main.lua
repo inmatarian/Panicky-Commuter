@@ -78,39 +78,47 @@ end
 
 ----------------------------------------
 
-bgm = nil
-bgmfile = nil
-soundbank = {}
+Sound = {
+  bank = {};
+  effectFiles = { DEATH="DEATH.wav", CHIRP="CHIRP.wav" };
+  effectData = {};
+}
 
-function playmod( file )
-  stopmod()
-  bgm = love.audio.newSource(file, "stream")
-  bgm:setLooping( true )
-  bgm:setVolume(0.8)
-  love.audio.play(bgm)
-  bgmfile = file
+function Sound.init()
+  for name, file in pairs(Sound.effectFiles) do
+    Sound.effectData[name] = love.sound.newSoundData(file)
+  end
 end
 
-function stopmod()
-  if not bgm then return end
-  love.audio.stop(bgm)
-  bgm = nil
-  bgmfile = nil
-end
-
-function playsound( file )
-  sound = love.audio.newSource(file, "static")
-  soundbank[sound] = sound
+function Sound.playsound(name)
+  local sound = love.audio.newSource(Sound.effectData[name])
+  Sound.bank[sound] = sound
   love.audio.play(sound)
 end
 
-function soundupdate(dt)
+function Sound.playmod( file )
+  Sound.stopmod()
+  Sound.bgm = love.audio.newSource(file, "stream")
+  Sound.bgm:setLooping( true )
+  Sound.bgm:setVolume(0.8)
+  love.audio.play(Sound.bgm)
+  Sound.bgmfile = file
+end
+
+function Sound.stopmod()
+  if not Sound.bgm then return end
+  love.audio.stop(Sound.bgm)
+  Sound.bgm = nil
+  Sound.bgmfile = nil
+end
+
+function Sound.update()
   local remove = {}
-  for _, src in pairs(soundbank) do
+  for _, src in pairs(Sound.bank) do
     if src:isStopped() then table.insert(remove, src) end
   end
   for _, src in ipairs(remove) do
-    soundbank[src] = nil
+    Sound.bank[src] = nil
   end
 end
 
@@ -184,8 +192,8 @@ end
 
 function Player:detectCollision( thing )
   if self.blink > 0 then return false end
-  local ax1, ax2, ay1, ay2 = self.x + 2, self.x + 6, self.y + 2, self.y + 6
-  local bx1, bx2, by1, by2 = thing.x + 2, thing.x + 6, thing.y + 2, thing.y + 6
+  local ax1, ax2, ay1, ay2 = self.x + 2, self.x + 4, self.y + 2, self.y + 6
+  local bx1, bx2, by1, by2 = thing.x + 2, thing.x + 4, thing.y + 2, thing.y + 6
   return (ax1 < bx2) and (ax2 > bx1) and (ay1 < by2) and (ay2 > by1)
 end
 
@@ -273,7 +281,7 @@ function BibleGuy:update(dt)
     local t = math.floor(self.clock * 4)
     if t % 2 == 0 then
       if not self.name then
-        playsound("CHIRP.wav")
+        Sound.playsound("CHIRP")
       end
       self.name = "bibleGuyOne"
     else
@@ -334,20 +342,20 @@ DIFFICULTY = {
   {
     speed = 100,
     blink = 1.5,
-    fatguy = 0.2,
-    hobo = 0.1,
+    fatguy = 0.15,
+    hobo = 0.075,
     cooloff = 0.75,
-    bible = 0.005,
+    bible = 0.0025,
     sitters = 0.50,
     score = 5
   },
   {
     speed = 140,
     blink = 0.75,
-    fatguy = 0.4,
-    hobo = 0.2,
+    fatguy = 0.3,
+    hobo = 0.15,
     cooloff = 0.25,
-    bible = 0.01,
+    bible = 0.0075,
     sitters = 0.90,
     score = 20
   }
@@ -365,7 +373,7 @@ function PlayState:init( mode )
   self.score = 0
   self.cooloff = 1
   self.clock = 0
-  playmod("game.s3m")
+  Sound.playmod("game.s3m")
 end
 
 function PlayState:update(dt)
@@ -434,7 +442,7 @@ function PlayState:checkCollisions()
   for thing, _ in pairs(self.things) do
     if self.player:detectCollision(thing) then
       self.player.lives = self.player.lives - 1
-      playsound("DEATH.wav")
+      Sound.playsound("DEATH")
       if self.player.lives <= 0 then
         table.remove(stateStack)
         table.insert(stateStack, GameOverState( self.score ))
@@ -498,7 +506,7 @@ end
 ReadySetGoState = class()
 
 function ReadySetGoState:init(mode)
-  stopmod()
+  Sound.stopmod()
   self.clock = 0
   self.mode = mode
 end
@@ -527,7 +535,7 @@ GameOverState = class()
 function GameOverState:init( score )
   self.score = score
   self.clock = 0
-  stopmod()
+  Sound.stopmod()
 end
 
 function GameOverState:update(dt)
@@ -640,10 +648,10 @@ function TitleState:update(dt)
     return
   elseif keypress["down"]==1 then
     self.mode = (self.mode + 1) % 3
-    playsound("CHIRP.wav")
+    Sound.playsound("CHIRP")
   elseif keypress["up"]==1 then
     self.mode = (self.mode - 1) % 3
-    playsound("CHIRP.wav")
+    Sound.playsound("CHIRP")
   elseif keypress["return"]==1 then
     if self.mode == 2 then
       newState = CreditState()
@@ -664,8 +672,8 @@ function TitleState:draw()
 end
 
 function TitleState:setMusic()
-  if bgmfile ~= "title.s3m" then
-    playmod("title.s3m")
+  if Sound.bgmfile ~= "title.s3m" then
+    Sound.playmod("title.s3m")
   end
 end
 
@@ -778,10 +786,12 @@ function love.load()
   love.graphics.setBlendMode("alpha")
   loadFont("cgafont.png")
   loadTileset("tileset.png")
+  Sound.init()
   table.insert( stateStack, TitleState() )
 end
 
 function love.update(dt)
+  if dt > 0.1 then dt = 0.1 end
   for i, v in pairs(keypress) do
     keypress[i] = v+1
   end
@@ -794,7 +804,7 @@ function love.update(dt)
   else
     love.event.push('q')
   end
-  soundupdate(dt)
+  Sound.update()
 end
 
 function love.draw()
