@@ -66,6 +66,18 @@ end
 
 ----------------------------------------
 
+function randomPull( ... )
+  local pull = math.random(0, 10000) / 10000
+  for n = 1, select('#', ...) do
+    local e = select(n, ...)
+    if pull < e then return n end
+    pull = pull - e
+  end
+  return nil
+end
+
+----------------------------------------
+
 bgm = nil
 bgmfile = nil
 soundbank = {}
@@ -189,7 +201,9 @@ function Sprite:init( pos, speed, name )
 end
 
 function Sprite:draw()
-  love.graphics.drawq( tilesetImage, spriteQuads[self.name], self.x, self.y )
+  if self.name then
+    love.graphics.drawq( tilesetImage, spriteQuads[self.name], self.x, self.y )
+  end
 end
 
 function Sprite:update(dt)
@@ -234,6 +248,41 @@ function HoboGuy:update(dt)
     if math.random(1, 2) == 1 then
       self.y = self.player.y
     end
+  end
+end
+
+----------------------------------------
+
+BibleGuy = class( Sprite )
+BibleGuy.possibleY = { 56, 72 }
+
+function BibleGuy:init()
+  local y = self.possibleY[ math.random(1, 2) ]
+  local rate = 1/10
+  Sprite.init( self, y, 0, "bibleGuyOne" )
+  self.x = 0
+  self.clock = 0
+  self.anim = Animator()
+  self.anim:add( "bibleGuyOne", rate )
+  self.anim:add( "bibleGuyTwo", rate )
+end
+
+function BibleGuy:update(dt)
+  self.clock = self.clock + dt
+  if self.clock < 1.5 then
+    local t = math.floor(self.clock * 4)
+    if t % 2 == 0 then
+      if not self.name then
+        playsound("CHIRP.wav")
+      end
+      self.name = "bibleGuyOne"
+    else
+      self.name = nil
+    end
+  else
+    self.x = self.x + (45 * dt)
+    self.anim:update(dt)
+    self.name = self.anim:current()
   end
 end
 
@@ -285,21 +334,21 @@ DIFFICULTY = {
   {
     speed = 100,
     blink = 1.5,
-    fatguy = 0.4,
-    hobo = 0.2,
+    fatguy = 0.2,
+    hobo = 0.1,
     cooloff = 0.75,
     bible = 0.005,
-    sitters = 0.40,
+    sitters = 0.50,
     score = 5
   },
   {
     speed = 140,
     blink = 0.75,
-    fatguy = 0.5,
-    hobo = 0.25,
+    fatguy = 0.4,
+    hobo = 0.2,
     cooloff = 0.25,
-    bible = 0.03,
-    sitters = 0.80,
+    bible = 0.01,
+    sitters = 0.90,
     score = 20
   }
 }
@@ -340,31 +389,31 @@ end
 
 function PlayState:addThings()
   local offset = self.background.offset
+  local mode = self.mode
   if math.floor(offset/12) == math.floor(self.background.lastOffset/12) then return end
 
   local column = 1 + (math.floor((offset+160)/12) % #MAP)
   local tile = MAP[column]
   if tile == 1 or tile == 2 then
-    if math.random(0, 10000)/10000 < self.mode.sitters then
-      local thing = Sitter( self.mode.speed )
+    if randomPull( mode.sitters ) == 1 then
+      local thing = Sitter( mode.speed )
       self.things[thing] = true
     end
   end
 
   if tile == 1 or tile == 3 then
-    local which = math.random(1, 2)
+    local which = randomPull( mode.fatguy, mode.hobo, mode.bible )
+    local thing
     if which == 1 then
-      if math.random(0, 10000)/10000 < self.mode.fatguy then
-        local thing = FatGuy( self.mode.speed )
-        self.things[thing] = true
-      end
-    else
-      if self.cooloff <= 0 and (math.random(0, 10000)/10000 < self.mode.hobo) then
-        local thing = HoboGuy( self.mode.speed, self.player )
-        self.things[thing] = true
-        self.cooloff = self.mode.cooloff
-      end
+      thing = FatGuy( mode.speed )
+    elseif which == 2 and self.cooloff <= 0 then
+      thing = HoboGuy( mode.speed, self.player )
+      self.cooloff = mode.cooloff
+    elseif which == 3 and self.cooloff <= 0 then
+      self.cooloff = mode.cooloff
+      thing = BibleGuy()
     end
+    if thing then self.things[thing] = true end
   end
 end
 
@@ -372,7 +421,7 @@ function PlayState:updateThings(dt)
   removal = {}
   for thing, _ in pairs(self.things) do
     thing:update(dt)
-    if thing.x < -16 then
+    if (thing.x < -16) or (thing.x > 180) then
       table.insert( removal, thing )
     end
   end

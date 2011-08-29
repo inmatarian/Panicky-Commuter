@@ -1,7 +1,7 @@
 
 function love.conf(t)
-  t.title = "Inny's Test"     -- The title of the window the game is in (string)
-  t.author = "Unnamed"        -- The author of the game (string)
+  t.title = "Panicky Commuter"-- The title of the window the game is in (string)
+  t.author = "Inmatarian"     -- The author of the game (string)
   t.version = 0               -- The LÖVE version this game was made for (number)
   t.screen.width = 480        -- The window width (number)
   t.screen.height = 360       -- The window height (number)
