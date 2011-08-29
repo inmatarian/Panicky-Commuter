@@ -764,6 +764,14 @@ end
 
 ----------------------------------------
 
+function saveScreenshot()
+  local screen = love.graphics.newScreenshot()
+  filedata = love.image.newEncodedImageData(screen, "bmp")
+  love.filesystem.write( "screenshot.bmp", filedata)
+end
+
+----------------------------------------
+
 function love.load()
   math.randomseed( os.time() )
   love.graphics.setColorMode("modulate")
@@ -776,6 +784,9 @@ end
 function love.update(dt)
   for i, v in pairs(keypress) do
     keypress[i] = v+1
+  end
+  if keypress["f2"] == 1 then
+    saveScreenshot()
   end
   local n = #stateStack
   if n > 0 then
