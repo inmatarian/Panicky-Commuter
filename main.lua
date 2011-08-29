@@ -34,6 +34,9 @@ xScale = math.floor(love.graphics.getWidth() / 160)
 yScale = math.floor(love.graphics.getHeight() / 120)
 
 WHITE = strict { 255, 255, 255, 255 }
+GRAY = strict { 144, 144, 144, 255 }
+
+globalHighScore = 0
 
 ----------------------------------------
 
@@ -96,6 +99,14 @@ function soundupdate(dt)
   end
   for _, src in ipairs(remove) do
     soundbank[src] = nil
+  end
+end
+
+----------------------------------------
+
+function updateHighScore( newScore )
+  if newScore > globalHighScore then
+    globalHighScore = newScore
   end
 end
 
@@ -404,7 +415,8 @@ function PlayState:updateScore(dt)
 end
 
 function PlayState:drawScore()
-  text( "center", 8, WHITE, string.format("%05i", self.score) )
+  text( "center", 98, WHITE, string.format("SCORE: %05i", self.score) )
+  text( "center", 106, GRAY, string.format("HIGH:  %05i", globalHighScore) )
 end
 
 function PlayState:drawThings()
@@ -426,8 +438,9 @@ function PlayState:drawLives()
   if lives == 2 and blink or lives < 2 then b = "playerMiddleDead" else b = "playerMiddleLife" end
   if lives == 3 and blink or lives < 3 then c = "playerRightDead" else c = "playerRightLife" end
   local quads = { "playerIcon", a, b, c }
+  love.graphics.setColor(WHITE)
   for i, v in ipairs( quads ) do
-    love.graphics.drawq( tilesetImage, spriteQuads[v], 56 + 8*i, 102 )
+    love.graphics.drawq( tilesetImage, spriteQuads[v], 56 + 8*i, 12 )
   end
 end
 
@@ -470,7 +483,11 @@ end
 
 function GameOverState:update(dt)
   self.clock = self.clock + dt
-  if self.clock > 3 then
+  if self.clock > 3 or
+     keypress["return"]==1 or
+     keypress["escape"]==1
+  then
+    updateHighScore(self.score)
     table.remove(stateStack)
   end
 end
