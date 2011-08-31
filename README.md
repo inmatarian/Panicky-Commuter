@@ -1,8 +1,6 @@
 Panicky Communter
 =================
 
-![Screenshot](screenshot.png)
-
 Story
 -----
 
@@ -37,4 +35,9 @@ Controls
 * *Down*: Move to the other side of the train car.
 * *Enter*: Pause the game to update your facebook status.
 * *Escape*: Return to the menu screen.
+
+### Anywhere ###
+
+* *F2*: Make a screenshot (Deposited in ~/.local/share/love/PanickyCommuter/)
+* *1-8*: Scale window size to multiple of 1 through 8.
 

@@ -176,7 +176,7 @@ end
 
 function Player:draw()
   if (self.blink <= 0) or (math.floor(self.blink*10)%2 == 0) then
-    love.graphics.drawq( tilesetImage, spriteQuads[self.anim:current()], self.x, self.y )
+    drawSprite( self.anim:current(), self.x, self.y )
   end
 end
 
@@ -210,7 +210,7 @@ end
 
 function Sprite:draw()
   if self.name then
-    love.graphics.drawq( tilesetImage, spriteQuads[self.name], self.x, self.y )
+    drawSprite( self.name, self.x, self.y )
   end
 end
 
@@ -322,17 +322,17 @@ function Background:update(dt)
 end
 
 function Background:draw()
+  local floor = math.floor
   local y = 32
-  local sx = math.floor(self.offset / 12)
+  local sx = floor(self.offset / 12)
   local ox = self.offset - ( sx * 12 )
   for x = 0, 14 do
     local t = x + 1 + sx
     while t > #MAP do t = t - #MAP end
     t = MAP[t]
-    local a, b, c = MAPTRANS[1][t], MAPTRANS[2][t], MAPTRANS[3][t]
-    love.graphics.drawq( tilesetImage, tileQuads[a], x*12-ox, y )
-    love.graphics.drawq( tilesetImage, tileQuads[b], x*12-ox, y+14 )
-    love.graphics.drawq( tilesetImage, tileQuads[c], x*12-ox, y+14+12 )
+    drawTile( MAPTRANS[1][t], floor(x*12-ox), floor(y) )
+    drawTile( MAPTRANS[2][t], floor(x*12-ox), floor(y+14) )
+    drawTile( MAPTRANS[3][t], floor(x*12-ox), floor(y+14+12) )
   end
 end
 
@@ -341,6 +341,15 @@ end
 DIFFICULTY = {
   {
     speed = 100,
+    blink = 2,
+    fatguy = 0.1,
+    hobo = 0.025,
+    cooloff = 2,
+    bible = 0.001,
+    sitters = 0.30,
+    score = 2
+  }, {
+    speed = 120,
     blink = 1.5,
     fatguy = 0.15,
     hobo = 0.075,
@@ -348,8 +357,7 @@ DIFFICULTY = {
     bible = 0.0025,
     sitters = 0.50,
     score = 5
-  },
-  {
+  }, {
     speed = 140,
     blink = 0.75,
     fatguy = 0.3,
@@ -497,7 +505,7 @@ function PlayState:drawLives()
   local quads = { "playerIcon", a, b, c }
   love.graphics.setColor(WHITE)
   for i, v in ipairs( quads ) do
-    love.graphics.drawq( tilesetImage, spriteQuads[v], 56 + 8*i, 12 )
+    drawSprite( v, 56 + 8*i, 12 )
   end
 end
 
@@ -614,7 +622,6 @@ function TitleMarquee:update(dt)
 end
 
 function TitleMarquee:draw()
-  local quad = spriteQuads["playerRightLife"]
   local sx = math.floor(self.offset / 8)
   local ox = self.offset - ( sx * 8 )
   local J = #self.text
@@ -625,7 +632,7 @@ function TitleMarquee:draw()
     local yo = sine( 360 * (x*8-ox)/160 )
     for j = 1, J do
       if self.text[j]:sub( t, t ) == 'X' then
-        love.graphics.drawq( tilesetImage, quad, x*8-ox, 8*j + 12*yo )
+        drawSprite( "playerRightLife", x*8-ox, 8*j + 12*yo )
       end
     end
   end
@@ -634,6 +641,12 @@ end
 ----------------------------------------
 
 TitleState = class()
+TitleState.modeList = {
+  "LOCAL",
+  "SHUTTLE",
+  "EXPRESS",
+  "CREDITS"
+}
 
 function TitleState:init()
   self.mode = 0
@@ -647,13 +660,13 @@ function TitleState:update(dt)
     table.remove(stateStack)
     return
   elseif keypress["down"]==1 then
-    self.mode = (self.mode + 1) % 3
+    self.mode = (self.mode + 1) % #self.modeList
     Sound.playsound("CHIRP")
   elseif keypress["up"]==1 then
-    self.mode = (self.mode - 1) % 3
+    self.mode = (self.mode - 1) % #self.modeList
     Sound.playsound("CHIRP")
   elseif keypress["return"]==1 then
-    if self.mode == 2 then
+    if self.mode == (#self.modeList - 1) then
       newState = CreditState()
     else
       newState = ReadySetGoState( DIFFICULTY[self.mode+1] )
@@ -664,11 +677,11 @@ end
 
 function TitleState:draw()
   self.marquee:draw()
-  text( 32, 64, WHITE, "LOCAL" )
-  text( 32, 80, WHITE, "EXPRESS" )
-  text( 32, 96, WHITE, "CREDITS" )
-  text( 4, 108, WHITE, "(X) 2993 INMATARIAN" )
-  love.graphics.drawq( tilesetImage, spriteQuads["playerIcon"], 16, 64 + (self.mode * 16) )
+  for i, v in ipairs( self.modeList ) do
+    text( 32, 50 + (i * 12), WHITE, v )
+  end
+  text( 4, 110, WHITE, "(X) 2993 INMATARIAN" )
+  drawSprite( "playerIcon", 16, 50 + ((self.mode+1) * 12) )
 end
 
 function TitleState:setMusic()
@@ -770,12 +783,27 @@ function loadFont(name)
   love.graphics.setFont(font)
 end
 
+function drawTile( name, x, y )
+  love.graphics.drawq( tilesetImage, tileQuads[name],
+    math.floor(x*xScale)/xScale, math.floor(y*yScale)/yScale )
+end
+
+function drawSprite( name, x, y )
+  love.graphics.drawq( tilesetImage, spriteQuads[name],
+    math.floor(x*xScale)/xScale, math.floor(y*yScale)/yScale )
+end
+
 ----------------------------------------
 
 function saveScreenshot()
   local screen = love.graphics.newScreenshot()
   filedata = love.image.newEncodedImageData(screen, "bmp")
   love.filesystem.write( "screenshot.bmp", filedata)
+end
+
+function changeScale( size )
+  xScale, yScale = size, size
+  love.graphics.setMode( 160 * xScale, 120 * yScale, false )
 end
 
 ----------------------------------------
@@ -797,6 +825,14 @@ function love.update(dt)
   end
   if keypress["f2"] == 1 then
     saveScreenshot()
+  elseif keypress["1"]==1 then changeScale(1)
+  elseif keypress["2"]==1 then changeScale(2)
+  elseif keypress["3"]==1 then changeScale(3)
+  elseif keypress["4"]==1 then changeScale(4)
+  elseif keypress["5"]==1 then changeScale(5)
+  elseif keypress["6"]==1 then changeScale(6)
+  elseif keypress["7"]==1 then changeScale(7)
+  elseif keypress["8"]==1 then changeScale(8)
   end
   local n = #stateStack
   if n > 0 then
